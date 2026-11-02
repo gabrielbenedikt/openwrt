@@ -130,21 +130,20 @@ Signed-off-by: Manuel Stocker <mensi@mensi.ch>
 +#include <linux/watchdog.h>
 +
 +#define HASIVO_REG_WDT_UNLOCK		0x09
-+  #define HASIVO_WDT_UNLOCK_MAGIC	0x4f
++#define HASIVO_WDT_UNLOCK_MAGIC	0x4f
 +
 +#define HASIVO_REG_WDT_CMD		0x0a
-+  #define HASIVO_WDT_CMD_ARM		0x4f
-+  #define HASIVO_WDT_CMD_DISARM		0x3f
++#define HASIVO_WDT_CMD_ARM		0x4f
++#define HASIVO_WDT_CMD_DISARM		0x3f
 +
 +#define HASIVO_REG_WDT_KEEPALIVE	0x0b
-+  #define HASIVO_WDT_KEEPALIVE_MAGIC	0xee
++#define HASIVO_WDT_KEEPALIVE_MAGIC	0xee
 +
 +/*
 + * Hardware timeout is fixed in MCU firmware and not software-
 + * configurable. Stock keepalive cadence is 2 s; the actual reset
-+ * threshold is empirically in the 10-30 s range. Pick a conservative
-+ * value so the kernel-core auto-feed (which fires at timeout/2) leaves
-+ * generous slack.
++ * threshold is firmware-defined. Keep the software timeout at 15 s;
++ * max_hw_heartbeat_ms below requests a two-second core feed cadence.
 + */
 +#define HASIVO_WDT_TIMEOUT		15
 +
@@ -221,12 +220,11 @@ Signed-off-by: Manuel Stocker <mensi@mensi.ch>
 +	 * it in a known state. It is not specified whether the arm
 +	 * sequence resets the chip's timeout counter, so send an
 +	 * explicit keepalive afterwards to guarantee a fresh window
-+	 * before the kernel-side feeder takes over at timeout/2.
++	 * before the kernel core starts periodic keepalives.
 +	 */
 +	ret = hasivo_mcu_wdt_send_cmd(mcu, HASIVO_WDT_CMD_ARM);
 +	if (ret)
 +		return dev_err_probe(dev, ret, "failed to arm watchdog\n");
-+
 +	ret = regmap_write(mcu->regmap, HASIVO_REG_WDT_KEEPALIVE,
 +			   HASIVO_WDT_KEEPALIVE_MAGIC);
 +	if (ret)
@@ -237,13 +235,15 @@ Signed-off-by: Manuel Stocker <mensi@mensi.ch>
 +	mcu->wdd.ops = &hasivo_mcu_wdt_ops;
 +	mcu->wdd.parent = dev;
 +	mcu->wdd.timeout = HASIVO_WDT_TIMEOUT;
++	/* 2s keepalive cadence, matching the vendor firmware. */
++	mcu->wdd.max_hw_heartbeat_ms = 4000;
 +	mcu->wdd.min_timeout = HASIVO_WDT_TIMEOUT;
 +	mcu->wdd.max_timeout = HASIVO_WDT_TIMEOUT;
 +
 +	/*
 +	 * Tell the watchdog core the hardware is already running so it
-+	 * pings via its own timer at timeout/2 until userspace (procd)
-+	 * opens /dev/watchdog0 and takes over.
++	 * services the MCU on its own timer until a userspace process
++	 * opens this watchdog device.
 +	 */
 +	set_bit(WDOG_HW_RUNNING, &mcu->wdd.status);
 +
