@@ -257,15 +257,23 @@
 			#address-cells = <1>;
 			#size-cells = <1>;
 
+			/*
+			 * Layout matches the vendor bootloader's own view
+			 * (`flshow` in U-Boot) exactly. Do not merge or resize
+			 * these: the bootloader reads RUNTIME1/RUNTIME2 at fixed
+			 * offsets and LOADER/BDINFO must stay untouched.
+			 */
 			partition@0 {
-				label = "u-boot";
+				label = "loader";
 				reg = <0x0000000 0x00e0000>;
 				read-only;
 			};
 
+			/* U-Boot environment (loaded from here at boot). */
 			partition@e0000 {
-				label = "u-boot-env";
+				label = "bdinfo";
 				reg = <0x00e0000 0x0010000>;
+				read-only;
 
 				nvmem-layout {
 					compatible = "u-boot,env";
@@ -292,15 +300,17 @@
 				read-only;
 			};
 
+			/* Primary boot image slot, written only in phase D1. */
 			partition@300000 {
-				label = "runtime";
-				reg = <0x0300000 0x0700000>;
-				read-only;
+				label = "runtime1";
+				reg = <0x0300000 0x0e80000>;
 			};
 
-			partition@a00000 {
-				label = "firmware";
-				reg = <0x0a00000 0x1600000>;
+			/* Secondary slot / vendor data area - kept intact. */
+			partition@1180000 {
+				label = "runtime2";
+				reg = <0x1180000 0x0e80000>;
+				read-only;
 			};
 		};
 	};
