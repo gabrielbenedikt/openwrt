@@ -176,6 +176,7 @@ define Device/horaco_zx-sw82ts-l2p
   DEVICE_MODEL := ZX-SW82TS-L2P
   DEVICE_PACKAGES := kmod-i2c-gpio kmod-rtc-pcf8563 kmod-hasivo-mcu-wdt kmod-mfd-hasivo-stc8 kmod-pse-hasivo-hs104
   IMAGE_SIZE := 22528k
+  UIMAGE_MAGIC := 0x93000000
   $(Device/kernel-lzma)
 endef
 TARGET_DEVICES += horaco_zx-sw82ts-l2p
