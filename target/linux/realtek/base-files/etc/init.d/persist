@@ -1,0 +1,79 @@
+#!/bin/sh /etc/rc.common
+# Early boot integration of the persistent store (JFFS2_CFG).
+#
+# Runs before network (S20) and dropbear (S19) so that /etc is already the
+# merged persistent view when those services read their configuration.
+# Disabled by default: with no <store>/openwrt/enabled marker this only does a
+# read-only probe of the partition and leaves the system untouched.
+
+START=05
+STOP=95
+
+start() {
+	. /lib/persist.sh
+
+	local label dev state free_kb
+	label=$(uci -q get persist.main.partition 2>/dev/null)
+	[ -n "$label" ] || label=jffs2_cfg
+
+	dev=$(persist_mtd_dev "$label")
+	if [ -z "$dev" ]; then
+		persist_log "partition '$label' not present - persistence unavailable"
+		return 0
+	fi
+
+	state=$(persist_probe "$dev") || {
+		persist_fallback "cannot read '$label' ($dev)"
+		return 0
+	}
+
+	if [ "$state" != enabled ]; then
+		persist_log "'$label' readable, persistence not enabled - RAM only"
+		return 0
+	fi
+
+	if persist_safe_mode; then
+		persist_log "safe_mode marker present - booting with RAM defaults"
+		touch /tmp/persist-safe-mode
+		return 0
+	fi
+
+	if ! persist_mount_rw "$dev"; then
+		persist_fallback "read-write mount of '$label' failed"
+		return 0
+	fi
+
+	free_kb=$(persist_free_kb)
+	if [ "${free_kb:-0}" -lt "$PERSIST_MIN_KB" ]; then
+		persist_log "only ${free_kb}kB free - refusing to overlay /etc"
+		persist_teardown
+		persist_fallback "store nearly full"
+		return 0
+	fi
+
+	if ! persist_init_tree; then
+		persist_teardown
+		persist_fallback "cannot initialise store tree"
+		return 0
+	fi
+
+	if ! persist_version_gate; then
+		persist_teardown
+		persist_fallback "version gate failed"
+		return 0
+	fi
+
+	if ! persist_etc_overlay; then
+		persist_teardown
+		persist_fallback "overlay of /etc failed"
+		return 0
+	fi
+
+	persist_log "active on '$label' ($dev), ${free_kb}kB free, /etc overlaid"
+}
+
+stop() {
+	. /lib/persist.sh
+	persist_teardown
+	persist_log "stopped"
+}

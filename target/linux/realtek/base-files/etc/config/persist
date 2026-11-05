@@ -1,0 +1,2 @@
+config persist 'main'
+	option partition 'jffs2_cfg'
