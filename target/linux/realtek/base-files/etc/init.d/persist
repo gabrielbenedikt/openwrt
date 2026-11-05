@@ -69,6 +69,7 @@ start() {
 		return 0
 	fi
 
+	persist_hostkeys_init
 	persist_log "active on '$label' ($dev), ${free_kb}kB free, /etc overlaid"
 }
 

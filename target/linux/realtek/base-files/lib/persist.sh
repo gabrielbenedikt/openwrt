@@ -125,3 +125,35 @@ persist_teardown() {
 	persist_mounted "$PERSIST_MP" && umount "$PERSIST_MP" 2>/dev/null
 	return 0
 }
+
+# The initramfs ships Dropbear host keys that were generated at image build
+# time, so every device flashed with the same image would share them (and the
+# image file contains the private half). On first activation, generate a unique
+# per-device set inside the overlay and record that it was done.
+persist_hostkeys_init() {
+	local marker="$PERSIST_STATE/meta/hostkeys-done"
+	local k
+
+	[ -e "$marker" ] && return 0
+	[ -x /usr/bin/dropbearkey ] || return 0
+
+	rm -f /etc/dropbear/dropbear_*_host_key 2>/dev/null
+	mkdir -p /etc/dropbear || return 1
+	chmod 0700 /etc/dropbear 2>/dev/null
+
+	for k in rsa ecdsa ed25519; do
+		dropbearkey -t "$k" -f "/etc/dropbear/dropbear_${k}_host_key" >/dev/null 2>&1 || \
+			persist_log "host key generation for $k failed"
+	done
+
+	# force the new keys through the overlay into the store
+	sync
+	if [ -f /etc/dropbear/dropbear_rsa_host_key ] && \
+	   [ -f "$PERSIST_STATE/etc/upper/dropbear/dropbear_rsa_host_key" ]; then
+		touch "$marker"
+		persist_log "generated unique SSH host keys and stored them"
+	else
+		persist_log "WARNING: host keys not persisted (upper missing them)"
+	fi
+	return 0
+}
