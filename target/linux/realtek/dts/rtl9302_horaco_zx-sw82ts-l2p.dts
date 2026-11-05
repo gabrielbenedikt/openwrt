@@ -291,7 +291,6 @@
 			partition@100000 {
 				label = "jffs2_cfg";
 				reg = <0x0100000 0x0100000>;
-				read-only;
 			};
 
 			partition@200000 {
