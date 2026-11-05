@@ -18,6 +18,9 @@ PERSIST_MP=${PERSIST_MP:-/persist}
 PERSIST_NS=${PERSIST_NS:-openwrt}
 PERSIST_STATE="$PERSIST_MP/$PERSIST_NS"
 PERSIST_MIN_KB=${PERSIST_MIN_KB:-64}
+# Bump when the on-store layout changes incompatibly. Deliberately NOT derived
+# from the kernel/build revision: a rebuild must not discard user configuration.
+PERSIST_SCHEMA=${PERSIST_SCHEMA:-1}
 
 persist_log() {
 	echo "persist: $*" >&2
@@ -71,10 +74,9 @@ persist_init_tree() {
 # Images change their /etc defaults over time; a stale upper can shadow new
 # files. Compare a fingerprint of the base system and quarantine a mismatch.
 persist_etc_fingerprint() {
-	{
-		cat /etc/openwrt_release 2>/dev/null
-		uname -r 2>/dev/null
-	} | md5sum | cut -d' ' -f1
+	local arch
+	arch=$(sed -n "s/^DISTRIB_ARCH='\(.*\)'/\1/p" /etc/openwrt_release 2>/dev/null)
+	echo "schema=$PERSIST_SCHEMA arch=$arch"
 }
 
 persist_version_gate() {
