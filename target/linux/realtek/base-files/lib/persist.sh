@@ -21,6 +21,8 @@ PERSIST_MIN_KB=${PERSIST_MIN_KB:-64}
 # Bump when the on-store layout changes incompatibly. Deliberately NOT derived
 # from the kernel/build revision: a rebuild must not discard user configuration.
 PERSIST_SCHEMA=${PERSIST_SCHEMA:-1}
+# rc.d directory holding the service links; overridable for testing.
+PERSIST_RCD=${PERSIST_RCD:-/etc/rc.d}
 
 persist_log() {
 	echo "persist: $*" >&2
@@ -88,8 +90,11 @@ persist_version_gate() {
 		return 0
 	fi
 	[ "$stored" = "$cur" ] && return 0
-	old="$PERSIST_STATE/etc.upper.$(date +%Y%m%d%H%M%S)"
+	# Fixed name, previous copy removed first: the board has no usable RTC, so a
+	# timestamped name collided on every boot and made the move fail.
+	old="$PERSIST_STATE/etc.upper.old"
 	persist_log "base system changed ($stored -> $cur): quarantining overlay as $(basename "$old")"
+	rm -rf "$old" 2>/dev/null
 	mv "$PERSIST_STATE/etc" "$old" 2>/dev/null || return 1
 	persist_init_tree || return 1
 	echo "$cur" > "$PERSIST_STATE/meta/fingerprint"
@@ -110,7 +115,7 @@ persist_fallback() {
 	local rc
 	persist_log "FAILED: $* - continuing with RAM defaults"
 	touch /tmp/persist-failed 2>/dev/null
-	for rc in /etc/rc.d/S??dropbear; do
+	for rc in "$PERSIST_RCD"/S??dropbear; do
 		[ -e "$rc" ] || continue
 		mv "$rc" "$rc.disabled" 2>/dev/null && \
 			persist_log "remote login disabled for this boot (use the serial console)"

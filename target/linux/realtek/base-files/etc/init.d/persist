@@ -45,10 +45,9 @@ start() {
 
 	free_kb=$(persist_free_kb)
 	if [ "${free_kb:-0}" -lt "$PERSIST_MIN_KB" ]; then
-		persist_log "only ${free_kb}kB free - refusing to overlay /etc"
-		persist_teardown
-		persist_fallback "store nearly full"
-		return 0
+		# A full store still has to serve the saved credentials: refusing the
+		# overlay would silently boot with the image defaults instead.
+		persist_log "WARNING: only ${free_kb}kB free on '$label' - continuing, writes may fail"
 	fi
 
 	if ! persist_init_tree; then
